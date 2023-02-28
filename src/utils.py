@@ -2,12 +2,25 @@ import bitarray
 import hashlib
 import hmac
 import numpy as np
+import os
 from pytorch_transformers import GPT2LMHeadModel, GPT2Tokenizer
 import torch
 import torch as th
 import torch.nn.functional as F
+import yaml
 
+from src.image_transformer import ImageTransformer
+import argparse
 
+def dict2namespace(config):
+    namespace = argparse.Namespace()
+    for key, value in config.items():
+        if isinstance(value, dict):
+            new_value = dict2namespace(value)
+        else:
+            new_value = value
+        setattr(namespace, key, new_value)
+    return namespace
 
 
 def kl2(q, p, prec=18):
@@ -578,3 +591,20 @@ def get_model(seed=1234, model_name='gpt2', device='cuda'):
     model.to(device)
     model.eval()
     return enc, model
+
+
+def get_it_model(seed=1234, model_name='cifar', device='cuda'):
+    """
+    ImageTransformer model
+    """
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+    checkpoint = th.load("data/datasets/image_transformer/model.pth")
+    with open(os.path.join("data/datasets/image_transformer/transformer_cat.yml"), 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+    config = dict2namespace(config)
+    model = ImageTransformer(config.model).to(device)
+    model.load_state_dict(checkpoint)
+    return None, ITModule(model=model, device=device)

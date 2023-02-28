@@ -173,6 +173,88 @@ class METEORMedium(Medium):
         """
         return "".join([self.enc.decode([o]) for o in output])
 
+
+class CIFARMedium(Medium):
+
+    def __init__(self, **kwargs):
+        self.prev = None
+        self.medium = "mnist"
+        self.device = kwargs.get("device", "cpu")
+        self.seed = kwargs.get("seed", None)
+        if self.seed is None:
+            random_data = os.urandom(4)
+            self.seed = int.from_bytes(random_data, byteorder="big")
+            self.seed = int.from_bytes(random_data, byteorder="big")
+            print("MNISTMedium random seed was set to {}".format(self.seed))
+
+        self.model_name = kwargs.get("model_name", "mnist-large")  # "gpt2-medium")
+        self.logit_temp = kwargs.get("logit_temp", 1.0)
+        self.model = kwargs.get("model", None)
+        self.enc = kwargs.get("enc", None)
+        if self.model is None:
+            _, self.model = get_it_model(self.seed, self.model_name, self.device)
+        self.output = []
+        self.log_probs = None
+        self.indices = None
+        self.probs_top_k = kwargs.get("probs_top_k", 0)
+        self.entropy_loss_threshold = kwargs.get("entropy_loss_threshold", 0)
+        self.precision = kwargs.get("precision", 0)
+        self.temp = kwargs.get("temp", 1.0)
+        self.output_buffer = []
+        self.collect_medium_dists = kwargs.get("collect_medium_dists", 0)
+        self.n_resets = 0
+        import uuid
+        self.run_hash = uuid.uuid4().hex[:6]
+
+
+    def reset(self, context=None):
+        self.prev = self.model.reset()
+        self.i = 0
+        print("MEDIUM RESET")
+        return self.step(None)
+
+    def step(self, action):
+        info = {}
+        if action is not None:
+            if action == -1:
+                raise Exception("Action -1 should never be selected!")
+            actr = th.FloatTensor([[action.item()]]).to(self.prev[0].device) / 255.0
+            if self.i == 1:
+                pp = actr
+            else:
+                pp = th.cat([self.prev[0], actr], 1)
+            self.prev = (pp, self.i)
+            self.output.append(action.item())
+            info = {"end_of_text": False,
+                    "end_of_context": False,
+                    "end_of_line": None}  # End of context / EOL status detection here
+        with th.no_grad():
+            logits, self.prev = self.model(self.prev)
+
+            self.i += 1
+            logits, indices = logits[0, -1, :].sort(descending=True)
+            logits = logits.double()
+
+            probs_all = F.softmax(logits / self.temp, dim=0)
+            if self.collect_medium_dists:
+                self.output_buffer.append(probs_all.cpu().tolist())
+            orig_entropy = entropy2(probs_all.cpu().numpy())
+            print("MEDIUM FORWARD #", self.i, " entropy: ", orig_entropy)
+
+            self.probs = F.softmax(logits / self.temp, dim=0)
+            info["logits"] = logits.cpu().numpy().astype(np.longdouble)
+            info["log_probs"] = F.log_softmax(logits / self.temp, dim=0).cpu().numpy().astype(np.longdouble)
+            info["log_probs_T=1"] = F.log_softmax(logits, dim=0).cpu().numpy().astype(np.longdouble)
+            info["indices"] = indices.cpu().numpy()
+            self.action_labels = indices
+            trunc_entropy = entropy2(self.probs.cpu().numpy())
+            info["medium_entropy_raw"] = orig_entropy
+            info["medium_entropy"] = trunc_entropy
+
+        self.info = info
+        return self.probs.cpu().numpy().astype(np.longdouble), self.info
+
+
 class RandomMedium(METEORMedium):
 
     def __init__(self, **kwargs):

@@ -18,7 +18,7 @@ import wandb
 import zmq
 
 from wikitext import Wikitext103Generator
-from medium import METEORMedium, RandomMedium, VariRandomMedium, WaveRNNMedium
+from medium import METEORMedium, CIFARMedium, RandomMedium, VariRandomMedium, WaveRNNMedium
 from imec import apply_random_mask, remove_random_mask, IMECEncoder, IMECDecoder
 from meteor import METEOREncoder, METEORDecoder
 from arithmetic import ArithmeticEncoder, ArithmeticDecoder
@@ -157,6 +157,19 @@ def run(cfg, model, enc, context_generator, _id):
                                       enc=enc,
                                       device=cfg.model_device,
                                       mec_mode=cfg.mec_mode
+                                      )
+            if cfg.medium == "cifar":
+                medium = CIFARMedium( entropy_loss_threshold=cfg.medium_entropy_loss_threshold,
+                                      precision=cfg.meteor_precision,
+                                      seed=cfg.seed,
+                                      temp=cfg.medium_temp,
+                                      probs_top_k=cfg.medium_top_k,
+                                      model=model,
+                                      enc=enc,
+                                      device=cfg.model_device,
+                                      mec_mode=cfg.mec_mode,
+                                      model_name=cfg.model_name,
+                                      collect_medium_dists=cfg.collect_medium_dists
                                       )
             elif cfg.medium == "vari_random":
                 medium = VariRandomMedium(entropy_loss_threshold=cfg.medium_entropy_loss_threshold,
@@ -325,7 +338,7 @@ def run(cfg, model, enc, context_generator, _id):
 
             ################# CHANNEL DIVIDE ###############################################################
 
-            if cfg.medium == "wavernn":
+            if cfg.medium == "wavernn" or cfg.medium == "cifar":
                 print("WaveRNN currently does not support decoding! s")
                 # update aggregate statistics
                 for k, v in stats_traj.items():
