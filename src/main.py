@@ -158,7 +158,7 @@ def run(cfg, model, enc, context_generator, _id):
                                       device=cfg.model_device,
                                       mec_mode=cfg.mec_mode
                                       )
-            if cfg.medium == "cifar":
+            elif cfg.medium == "cifar":
                 medium = CIFARMedium( entropy_loss_threshold=cfg.medium_entropy_loss_threshold,
                                       precision=cfg.meteor_precision,
                                       seed=cfg.seed,
