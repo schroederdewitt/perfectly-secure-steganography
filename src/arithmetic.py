@@ -3,7 +3,8 @@ from collections import defaultdict
 import numpy as np
 import time
 import torch as th
-from src.utils import is_sent_finish, num_same_from_beg, int2bits, bits2int, DRBG, bin_sort, kl2, entropy
+from src.utils import is_sent_finish, num_same_from_beg, int2bits, bits2int, DRBG, bin_sort, kl2
+from src.utils import entropy2 as entropy
 
 
 class ArithmeticEncoder:
